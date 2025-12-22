@@ -1,0 +1,38 @@
+# --- Python Temizliği ---
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Veri ve Analiz Çıktıları (Önemli) ---
+# Ham veriyi GitHub'a atmak istersen bu satırı silebilirsin 
+# Ama genellikle büyük dosyalar repoyu şişirir
+data/raw/*.xlsx
+
+# Otomatik üretilen JSON veri tabanı
+dashboard_data.json
+
+# Raporlar klasörü (Her demo yaptığında farklı sonuçlar çıkacağı için takip etme)
+reports/
+reports/csv/
+*.log
+
+# --- IDE ve Sistem Dosyaları ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Frontend / Web Temizliği ---
+# Eğer node_modules kullanıyorsan (şu an CDN kullanıyor gibisin ama kalsın)
+node_modules/
+dist/
+build/

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor Üretim SQC Dashboard</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        /* Custom Styles */
+        :root {
+            --primary: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1f2937;
+            --light: #f3f4f6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .dashboard-container {
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            backdrop-filter: blur(10px);
+        }
+        
+        .sidebar {
+            background: var(--dark);
+            color: white;
+            width: 250px;
+            min-height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            transition: transform 0.3s;
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-200px);
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 30px;
+            transition: margin 0.3s;
+        }
+        
+        .main-content.expanded {
+            margin-left: 50px;
+        }
+        
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+        }
+        
+        .kpi-card.success::before { background: var(--success); }
+        .kpi-card.warning::before { background: var(--warning); }
+        .kpi-card.danger::before { background: var(--danger); }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+        }
+        
+        .spinner {
+            border: 4px solid var(--light);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        
+        // ==================== MAIN APP COMPONENT ====================
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('overview');
+            const [collapsed, setCollapsed] = useState(false);
+            const [loading, setLoading] = useState(true);
+            const [dashboardData, setDashboardData] = useState(null);
+            const [error, setError] = useState(null);
+            
+            // GERÇEK VERİYİ YÜKLEYECEĞİZ!
+            useEffect(() => {
+                const fetchDashboardData = async () => {
+                    setLoading(true);
+                    try {
+                        const response = await fetch('dashboard_data.json');
+                        if (!response.ok) {
+                            throw new Error('Dashboard verisi yüklenemedi');
+                        }
+                        const data = await response.json();
+                        setDashboardData(data);
+                        setError(null);
+                    } catch (err) {
+                        console.error('Veri yükleme hatası:', err);
+                        setError(err.message);
+                        // Fallback olarak basit veri kullan
+                        setDashboardData({
+                            overview: {
+                                kpis: {
+                                    oee: { value: 78, target: 85, unit: '%' },
+                                    efficiency: { value: 82.3, target: 90, unit: '%' },
+                                    quality: { value: 80, target: 99, unit: '%' },
+                                    production: { value: 100, target: 100, unit: 'adet' }
+                                },
+                                alerts: [
+                                    { type: 'danger', title: 'Yüksek Hata Oranı', message: 'Hata oranı %20' },
+                                    { type: 'warning', title: 'Düşük Cpk', message: 'Cpk = 0.73' }
+                                ]
+                            }
+                        });
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                
+                fetchDashboardData();
+            }, []);
+            
+            // Sidebar Component
+            const Sidebar = () => {
+                const menuItems = [
+                    { id: 'overview', label: 'Genel Bakış', icon: '📊' },
+                    { id: 'control', label: 'Kontrol Grafikleri', icon: '📈' },
+                    { id: 'pareto', label: 'Pareto Analizi', icon: '📉' },
+                    { id: 'capability', label: 'Yeterlilik', icon: '🎯' },
+                    { id: 'oee', label: 'OEE', icon: '⚡' },
+                    { id: 'live', label: 'Canlı İzleme', icon: '🔴' }
+                ];
+                
+                return (
+                    <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+                        <div className="p-4">
+                            <h1 className="text-xl font-bold mb-8">🏭 Motor SQC</h1>
+                            <nav>
+                                {menuItems.map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setActiveTab(item.id)}
+                                        className={`w-full text-left p-3 mb-2 rounded-lg hover:bg-gray-700 transition ${
+                                            activeTab === item.id ? 'bg-gray-700' : ''
+                                        }`}
+                                    >
+                                        <span className="mr-3">{item.icon}</span>
+                                        {!collapsed && item.label}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // KPI Card Component
+            const KPICard = ({ title, value, unit, target, status }) => {
+                const getStatusColor = () => {
+                    if (value >= target * 0.95) return 'success';
+                    if (value >= target * 0.85) return 'warning';
+                    return 'danger';
+                };
+                
+                return (
+                    <div className={`kpi-card ${getStatusColor()}`}>
+                        <h3 className="text-gray-500 text-sm mb-2">{title}</h3>
+                        <div className="text-3xl font-bold">
+                            {value}{unit}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-2">
+                            Hedef: {target}{unit}
+                        </div>
+                    </div>
+                );
+            };
+            
+            // Overview Tab
+            const OverviewTab = () => {
+                if (!dashboardData?.overview) {
+                    return <div>Veri yükleniyor...</div>;
+                }
+                
+                const { kpis, alerts } = dashboardData.overview;
+                
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">Genel Bakış</h1>
+                        
+                        {/* KPI Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <KPICard
+                                title="OEE"
+                                value={kpis.oee?.value || 0}
+                                unit={kpis.oee?.unit || '%'}
+                                target={kpis.oee?.target || 85}
+                            />
+                            <KPICard
+                                title="Verimlilik"
+                                value={kpis.efficiency?.value || 0}
+                                unit={kpis.efficiency?.unit || '%'}
+                                target={kpis.efficiency?.target || 90}
+                            />
+                            <KPICard
+                                title="Kalite"
+                                value={kpis.quality?.value || 0}
+                                unit={kpis.quality?.unit || '%'}
+                                target={kpis.quality?.target || 99}
+                            />
+                            <KPICard
+                                title="Üretim"
+                                value={kpis.production?.value || 0}
+                                unit={kpis.production?.unit || 'adet'}
+                                target={kpis.production?.target || 100}
+                            />
+                        </div>
+                        
+                        {/* Alerts */}
+                        {alerts && alerts.length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-bold mb-4">Kritik Uyarılar</h2>
+                                {alerts.map((alert, idx) => (
+                                    <div key={idx} className={`p-4 mb-3 rounded-lg bg-${alert.type === 'danger' ? 'red' : 'yellow'}-50 border-l-4 border-${alert.type === 'danger' ? 'red' : 'yellow'}-500`}>
+                                        <strong>{alert.title}:</strong> {alert.message}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+            
+            // Control Charts Tab
+            const ControlChartsTab = () => {
+                useEffect(() => {
+                    if (!dashboardData?.control_charts) return;
+                    
+                    // Basit bir grafik çiz
+                    const trace = {
+                        x: Array.from({length: 100}, (_, i) => i + 1),
+                        y: Array.from({length: 100}, () => 60 + Math.random() * 10),
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: 'Gözlem'
+                    };
+                    
+                    const ucl = {
+                        x: Array.from({length: 100}, (_, i) => i + 1),
+                        y: Array(100).fill(70),
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'UCL',
+                        line: { dash: 'dash', color: 'red' }
+                    };
+                    
+                    const lcl = {
+                        x: Array.from({length: 100}, (_, i) => i + 1),
+                        y: Array(100).fill(55),
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'LCL',
+                        line: { dash: 'dash', color: 'red' }
+                    };
+                    
+                    const layout = {
+                        title: 'X-bar Kontrol Grafiği',
+                        xaxis: { title: 'Gözlem No' },
+                        yaxis: { title: 'Değer' }
+                    };
+                    
+                    Plotly.newPlot('controlChart', [trace, ucl, lcl], layout, {responsive: true});
+                }, [dashboardData]);
+                
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">Kontrol Grafikleri</h1>
+                        <div className="chart-container">
+                            <div id="controlChart"></div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // Pareto Tab
+            const ParetoTab = () => {
+                useEffect(() => {
+                    if (!dashboardData?.pareto) return;
+                    
+                    const chart = new Chart(document.getElementById('paretoChart'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Sızdırmazlık', 'Eksik Tork', 'Yüzey Çatlağı', 'Ölçü Sapması'],
+                            datasets: [{
+                                type: 'bar',
+                                label: 'Hata Sayısı',
+                                data: [10, 4, 4, 2],
+                                backgroundColor: '#2563eb'
+                            }, {
+                                type: 'line',
+                                label: 'Kümülatif %',
+                                data: [50, 70, 90, 100],
+                                borderColor: '#ef4444',
+                                yAxisID: 'y1'
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: { position: 'left' },
+                                y1: { position: 'right', max: 100 }
+                            }
+                        }
+                    });
+                    
+                    return () => chart.destroy();
+                }, [dashboardData]);
+                
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">Pareto Analizi</h1>
+                        <div className="chart-container">
+                            <canvas id="paretoChart"></canvas>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // Capability Tab
+            const CapabilityTab = () => {
+                const cpk = dashboardData?.capability?.main_capability?.indices?.Cpk || 0.73;
+                const sigma = dashboardData?.capability?.main_capability?.sigma_level || 3.69;
+                
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">Süreç Yeterlilik</h1>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div className="bg-white p-4 rounded-lg shadow text-center">
+                                <h3 className="text-gray-500 mb-2">Cpk</h3>
+                                <p className="text-3xl font-bold text-red-600">{cpk}</p>
+                                <span className="text-xs text-red-600">Yetersiz</span>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg shadow text-center">
+                                <h3 className="text-gray-500 mb-2">Sigma</h3>
+                                <p className="text-3xl font-bold">{sigma}σ</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // OEE Tab
+            const OEETab = () => {
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">OEE Dashboard</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="text-gray-500">OEE</h3>
+                                <p className="text-3xl font-bold text-orange-600">78%</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="text-gray-500">Kullanılabilirlik</h3>
+                                <p className="text-3xl font-bold text-green-600">97.4%</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="text-gray-500">Performans</h3>
+                                <p className="text-3xl font-bold text-green-600">100%</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="text-gray-500">Kalite</h3>
+                                <p className="text-3xl font-bold text-red-600">80%</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // Live Monitoring Tab
+            const LiveMonitoringTab = () => {
+                return (
+                    <div>
+                        <h1 className="text-3xl font-bold mb-6">Canlı İzleme</h1>
+                        <div className="bg-white p-6 rounded-lg shadow">
+                            <h2 className="text-xl font-bold mb-4">Motor BMC-1101</h2>
+                            <div className="mb-4">
+                                <div className="flex justify-between mb-2">
+                                    <span>İlerleme</span>
+                                    <span>65%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-4">
+                                    <div className="bg-blue-600 h-4 rounded-full" style={{width: '65%'}}></div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-gray-500">Verimlilik</p>
+                                    <p className="text-2xl font-bold">83.5%</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500">Durum</p>
+                                    <p className="text-2xl font-bold text-green-600">Normal</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+            
+            // Main Render
+            const renderContent = () => {
+                if (loading) {
+                    return (
+                        <div className="loading">
+                            <div className="spinner"></div>
+                        </div>
+                    );
+                }
+                
+                if (error) {
+                    return (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-red-600">⚠️ {error}</p>
+                            <p className="text-gray-600 mt-2">Yedek veri kullanılıyor...</p>
+                        </div>
+                    );
+                }
+                
+                switch(activeTab) {
+                    case 'overview': return <OverviewTab />;
+                    case 'control': return <ControlChartsTab />;
+                    case 'pareto': return <ParetoTab />;
+                    case 'capability': return <CapabilityTab />;
+                    case 'oee': return <OEETab />;
+                    case 'live': return <LiveMonitoringTab />;
+                    default: return <OverviewTab />;
+                }
+            };
+            
+            return (
+                <div className="dashboard-container">
+                    <Sidebar />
+                    <div className={`main-content ${collapsed ? 'expanded' : ''}`}>
+                        {renderContent()}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Render App
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
