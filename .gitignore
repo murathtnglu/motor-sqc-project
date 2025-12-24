@@ -36,3 +36,21 @@ Thumbs.db
 node_modules/
 dist/
 build/
+
+data/processed/
+*.bak
+
+# --- Raw data (do not commit large files) ---
+data/raw/*.xlsx
+!data/raw/.gitkeep
+
+# --- Processed data (generated outputs) ---
+data/processed/*
+!data/processed/.gitkeep
+
+# --- Reports (generated outputs) ---
+reports/*
+!reports/.gitkeep
+
+# Generated dashboard JSON (if created under app/)
+app/dashboard_data.json
