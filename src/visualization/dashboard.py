@@ -78,12 +78,16 @@ class Dashboard:
                 col_name = f"{col[0]}_{col[1]}" if isinstance(col, tuple) else str(col)
                 shift_perf_dict[idx][col_name] = float(shift_performance.loc[idx, col]) if pd.notna(shift_performance.loc[idx, col]) else None
         
+        # Korelasyon analizi (Data Explorer)
+        correlation = self.descriptive.get_correlation_analysis()
+
         return {
             'kpis': kpis,
             'time_series': time_series,
             'alerts': alerts,
             'current_status': current_status,
-            'shift_performance': shift_perf_dict  # Düzeltilmiş format
+            'shift_performance': shift_perf_dict,  # Düzeltilmiş format
+            'correlation': correlation
         }
     
     def get_control_charts_data(self):

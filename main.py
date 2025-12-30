@@ -14,7 +14,7 @@ def run_demo():
     try:
         from src.visualization.dashboard import Dashboard
         db = Dashboard()
-        db.export_dashboard_json(output_path='dashboard_data.json')
+        db.export_dashboard_json(output_path='app/dashboard_data.json')
         print("✅ Analizler tamamlandı, dashboard_data.json güncellendi.")
     except Exception as e:
         print(f"❌ Analiz hatası: {e}")
